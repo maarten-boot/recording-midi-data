@@ -11,6 +11,7 @@
 
 Requires: pip install mido python-rtmidi
 """
+
 import argparse
 import queue
 import sys
@@ -28,6 +29,7 @@ TICKS_PER_BEAT = 1000  # with tempo 1_000_000 us/beat -> 1 tick = 1 ms
 IDLE_TIME = 30.0
 MAX_HOLD = 120.0
 DEFAULT_TEMPO = 1_000_000
+
 
 def log(text):
     print(f"{datetime.now():%H:%M:%S} {text}", flush=True)
@@ -132,12 +134,14 @@ def port_manager(q, stop):
         def on_msg(msg):  # keep tiny: runs in the MIDI driver thread
             if msg.type not in SKIP_TYPES:
                 q.put((time.monotonic(), name, msg))
+
         return on_msg
 
     while not stop.is_set():
         try:
             names = {
-                n for n in mido.get_input_names()
+                n
+                for n in mido.get_input_names()
                 if not any(part in n.lower() for part in SKIP_PORT_PARTS)
             }
 
@@ -170,10 +174,18 @@ def port_manager(q, stop):
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("-o", "--outdir", default=".", help="output directory")
-    ap.add_argument("--idle", type=float, default=IDLE_TIME,
-                    help="seconds of silence that end a recording (default 10)")
-    ap.add_argument("--max-hold", type=float, default=MAX_HOLD,
-                    help="max silence while notes/pedal are held (default 120)")
+    ap.add_argument(
+        "--idle",
+        type=float,
+        default=IDLE_TIME,
+        help="seconds of silence that end a recording (default 10)",
+    )
+    ap.add_argument(
+        "--max-hold",
+        type=float,
+        default=MAX_HOLD,
+        help="max silence while notes/pedal are held (default 120)",
+    )
     ap.add_argument("--list", action="store_true", help="list input ports and exit")
     args = ap.parse_args()
 
@@ -184,8 +196,14 @@ def main():
 
     q = queue.Queue()
     stop = threading.Event()
-    threading.Thread(target=port_manager, args=(q, stop), daemon=True,).start()
-    log(f"midi recorder active, writing to {Path(args.outdir).resolve()} (Ctrl-C to quit)")
+    threading.Thread(
+        target=port_manager,
+        args=(q, stop),
+        daemon=True,
+    ).start()
+    log(
+        f"midi recorder active, writing to {Path(args.outdir).resolve()} (Ctrl-C to quit)"
+    )
 
     try:
         session_loop(q, args.outdir, args.idle, args.max_hold)
