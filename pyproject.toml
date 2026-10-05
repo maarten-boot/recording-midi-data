@@ -22,8 +22,11 @@ dev = [
 [project.scripts]
 midi-recorder = "midi_recorder:main"
 
+[project.gui-scripts]
+midi-recorder-gui = "midi_recorder_gui:main"
+
 [tool.setuptools]
-py-modules = ["midi_recorder"]
+py-modules = ["midi_recorder", "midi_recorder_gui"]
 
 [tool.ruff]
 line-length = 160
