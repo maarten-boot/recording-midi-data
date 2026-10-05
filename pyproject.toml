@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "midi-recorder"
+version = "0.1.0"
+description = "Record all incoming MIDI events to timestamped .mid files"
+requires-python = ">=3.10"
+dependencies = [
+    "mido",
+    "python-rtmidi",
+]
+
+[project.optional-dependencies]
+dev = [
+    "mypy",
+    "pytest",
+    "ruff",
+]
+
+[project.scripts]
+midi-recorder = "midi_recorder:main"
+
+[tool.setuptools]
+py-modules = ["midi_recorder"]
+
+[tool.ruff]
+line-length = 160
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "C4", "SIM", "RUF", "G", "LOG"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+warn_unreachable = true
+pretty = true
+mypy_path = "stubs"
+show_error_codes = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
