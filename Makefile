@@ -18,7 +18,7 @@ PY    := midi_recorder.py midi_recorder_gui.py
 SRC   := $(PY) tests stubs
 
 .DEFAULT_GOAL := help
-.PHONY: help all venv lint format format-check typecheck test check build run run-gui clean distclean
+.PHONY: help all venv lint format format-check typecheck test check build run run-gui clean distclean testpypi pypi
 
 help:
 	@echo "all           distclean + venv + lint + format + format-check + typecheck + test"
@@ -34,6 +34,7 @@ help:
 	@echo "run-gui       run the status window (needs tkinter; ARGS=\"...\" passes options)"
 	@echo "clean         remove caches"
 	@echo "distclean     clean + remove the virtualenv"
+	@echo "testpypi      check + build + upload dist/* to TestPyPI"
 
 all: distclean venv lint format format-check typecheck test
 
@@ -62,7 +63,7 @@ test: $(STAMP)
 
 check: lint format-check typecheck test
 
-build: $(STAMP)
+build: $(STAMP) check
 	rm -rf dist
 	$(VBIN)/python -m build
 	$(VBIN)/twine check dist/*
@@ -79,3 +80,15 @@ clean:
 
 distclean: clean
 	rm -rf $(VENV)
+
+# ---------------------------------------
+testpypi: build
+	$(VBIN)/twine upload \
+		--config-file=$${HOME}/.pypirc \
+		--repository=mboot_testpypi \
+		dist/*
+
+pypi: build
+	$(VBIN)/twine upload \
+		--repository=mboot_pypi \
+		dist/*
