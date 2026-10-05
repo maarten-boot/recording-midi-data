@@ -18,7 +18,7 @@ PY    := midi_recorder.py midi_recorder_gui.py
 SRC   := $(PY) tests stubs
 
 .DEFAULT_GOAL := help
-.PHONY: help all venv lint format format-check typecheck test check run run-gui clean distclean
+.PHONY: help all venv lint format format-check typecheck test check build run run-gui clean distclean
 
 help:
 	@echo "all           distclean + venv + lint + format + format-check + typecheck + test"
@@ -29,6 +29,7 @@ help:
 	@echo "typecheck     mypy --strict"
 	@echo "test          pytest"
 	@echo "check         lint + format-check + typecheck + test"
+	@echo "build         build sdist + wheel into dist/ and run twine check"
 	@echo "run           run the recorder (ARGS=\"...\" passes options)"
 	@echo "run-gui       run the status window (needs tkinter; ARGS=\"...\" passes options)"
 	@echo "clean         remove caches"
@@ -61,6 +62,11 @@ test: $(STAMP)
 
 check: lint format-check typecheck test
 
+build: $(STAMP)
+	rm -rf dist
+	$(VBIN)/python -m build
+	$(VBIN)/twine check dist/*
+
 run: $(STAMP)
 	$(VBIN)/python midi_recorder.py $(ARGS)
 
@@ -68,7 +74,7 @@ run-gui: $(STAMP)
 	$(VBIN)/python midi_recorder_gui.py $(ARGS)
 
 clean:
-	rm -rf .mypy_cache .ruff_cache .pytest_cache build *.egg-info
+	rm -rf .mypy_cache .ruff_cache .pytest_cache build dist *.egg-info
 	find . -name __pycache__ -not -path "./$(VENV)/*" -prune -exec rm -rf {} +
 
 distclean: clean

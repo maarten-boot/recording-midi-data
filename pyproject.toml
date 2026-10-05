@@ -1,23 +1,48 @@
 [build-system]
-requires = ["setuptools>=68"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [project]
 name = "midi-recorder"
-version = "0.1.0"
-description = "Record all incoming MIDI events to timestamped .mid files"
+dynamic = ["version"]  # single source: __version__ in midi_recorder.py
+description = "Record all incoming MIDI events to timestamped .mid files, saved automatically when playing stops"
+readme = "README.md"
 requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Maarten Boot" }]
+keywords = ["midi", "recorder", "piano", "mido", "daw"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Environment :: X11 Applications",
+    "Intended Audience :: End Users/Desktop",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Sound/Audio :: MIDI",
+]
 dependencies = [
-    "mido",
-    "python-rtmidi",
+    "mido>=1.3",
+    "python-rtmidi>=1.5.8",
 ]
 
 [project.optional-dependencies]
 dev = [
+    "build",
     "mypy",
     "pytest",
     "ruff",
+    "twine",
 ]
+
+[project.urls]
+Homepage = "https://github.com/maarten-boot/recording-midi-data"
+Issues = "https://github.com/maarten-boot/recording-midi-data/issues"
 
 [project.scripts]
 midi-recorder = "midi_recorder:main"
@@ -25,8 +50,14 @@ midi-recorder = "midi_recorder:main"
 [project.gui-scripts]
 midi-recorder-gui = "midi_recorder_gui:main"
 
-[tool.setuptools]
-py-modules = ["midi_recorder", "midi_recorder_gui"]
+[tool.hatch.version]
+path = "midi_recorder.py"
+
+[tool.hatch.build.targets.wheel]
+include = ["midi_recorder.py", "midi_recorder_gui.py"]
+
+[tool.hatch.build.targets.sdist]
+include = ["midi_recorder.py", "midi_recorder_gui.py", "tests", "stubs", "Makefile", "README.md", "LICENSE", "pyproject.toml"]
 
 [tool.ruff]
 line-length = 160
