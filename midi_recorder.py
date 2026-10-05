@@ -25,7 +25,9 @@ SKIP_TYPES = {"clock", "active_sensing"}
 SKIP_PORT_PARTS = ("midi through", "rtmidi")  # loopback / our own ports
 RESCAN_SECONDS = 2.0
 TICKS_PER_BEAT = 1000  # with tempo 1_000_000 us/beat -> 1 tick = 1 ms
-
+IDLE_TIME = 30.0
+MAX_HOLD = 120.0
+DEFAULT_TEMPO = 1_000_000
 
 def log(text):
     print(f"{datetime.now():%H:%M:%S} {text}", flush=True)
@@ -62,21 +64,25 @@ def save(events, started, outdir):
     mid = mido.MidiFile(type=1, ticks_per_beat=TICKS_PER_BEAT)
 
     tempo_track = mido.MidiTrack()
-    tempo_track.append(mido.MetaMessage("set_tempo", tempo=1_000_000))
+    tempo_track.append(mido.MetaMessage("set_tempo", tempo=DEFAULT_TEMPO))
     tempo_track.append(mido.MetaMessage("end_of_track", time=0))
-    mid.tracks.append(tempo_track)
 
+    mid.tracks.append(tempo_track)
     ports = list(dict.fromkeys(port for _, port, _ in events))
+
     for port in ports:
         track = mido.MidiTrack()
         track.append(mido.MetaMessage("track_name", name=port, time=0))
         last_tick = 0
+
         for t, p, msg in events:
             if p != port:
                 continue
+
             tick = round((t - t0) * 1000)
             track.append(msg.copy(time=tick - last_tick))  # delta from absolute
             last_tick = tick
+
         track.append(mido.MetaMessage("end_of_track", time=0))
         mid.tracks.append(track)
 
@@ -89,6 +95,7 @@ def session_loop(q, outdir, idle, max_hold):
     """Block for the first event, collect until playing stops, save, repeat."""
     outdir = Path(outdir)
     outdir.mkdir(parents=True, exist_ok=True)
+
     while True:
         first = q.get()
         started = datetime.now()
@@ -96,18 +103,22 @@ def session_loop(q, outdir, idle, max_hold):
         state = HoldState()
         state.update(first[1], first[2])
         log("recording started")
+
         try:
             while True:
                 limit = max_hold if state.active else idle
                 remaining = limit - (time.monotonic() - events[-1][0])
+
                 if remaining <= 0:
                     break
                 try:
                     item = q.get(timeout=remaining)
                 except queue.Empty:
                     break
+
                 events.append(item)
                 state.update(item[1], item[2])
+
         finally:  # also runs on Ctrl-C so the current take is not lost
             path = save(events, started, outdir)
             log(f"saved {path} ({len(events)} events)")
@@ -129,6 +140,7 @@ def port_manager(q, stop):
                 n for n in mido.get_input_names()
                 if not any(part in n.lower() for part in SKIP_PORT_PARTS)
             }
+
         except Exception as exc:  # backend hiccup, try again next round
             log(f"port scan failed: {exc}")
             names = set(open_ports)
@@ -137,14 +149,18 @@ def port_manager(q, stop):
             try:
                 open_ports[name] = mido.open_input(name, callback=make_callback(name))
                 log(f"listening on: {name}")
+
             except Exception as exc:
                 log(f"cannot open {name}: {exc}")
+
         for name in set(open_ports) - names:
             try:
                 open_ports.pop(name).close()
+
             except Exception:
                 pass
             log(f"input gone: {name}")
+
         stop.wait(RESCAN_SECONDS)
 
     for port in open_ports.values():
@@ -154,9 +170,9 @@ def port_manager(q, stop):
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("-o", "--outdir", default=".", help="output directory")
-    ap.add_argument("--idle", type=float, default=10.0,
+    ap.add_argument("--idle", type=float, default=IDLE_TIME,
                     help="seconds of silence that end a recording (default 10)")
-    ap.add_argument("--max-hold", type=float, default=120.0,
+    ap.add_argument("--max-hold", type=float, default=MAX_HOLD,
                     help="max silence while notes/pedal are held (default 120)")
     ap.add_argument("--list", action="store_true", help="list input ports and exit")
     args = ap.parse_args()
@@ -168,14 +184,18 @@ def main():
 
     q = queue.Queue()
     stop = threading.Event()
-    threading.Thread(target=port_manager, args=(q, stop), daemon=True).start()
+    threading.Thread(target=port_manager, args=(q, stop), daemon=True,).start()
     log(f"midi recorder active, writing to {Path(args.outdir).resolve()} (Ctrl-C to quit)")
+
     try:
         session_loop(q, args.outdir, args.idle, args.max_hold)
+
     except KeyboardInterrupt:
         pass
+
     finally:
         stop.set()
+
     return 0
 
 
