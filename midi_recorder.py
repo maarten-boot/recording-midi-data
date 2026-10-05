@@ -37,7 +37,7 @@ from typing import TextIO
 
 import mido
 
-__version__ = "0.1.1"
+__version__ = "1.0.0"
 
 SKIP_TYPES = {"clock", "active_sensing"}
 SKIP_PORT_PARTS = ("midi through", "rtmidi")  # loopback / our own ports
