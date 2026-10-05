@@ -2,6 +2,9 @@
 #   make            -> show targets
 #   make all        -> clean rebuild of the venv, then format, lint, typecheck and test
 #   make check      -> ruff check + ruff format --check + mypy --strict + pytest
+#   make build      -> check, then build sdist + wheel into dist/ and run twine check
+#   make testpypi   -> build, then upload dist/* to TestPyPI (repository section mboot_testpypi in ~/.pypirc)
+#   make pypi       -> build, then upload dist/* to PyPI (repository section mboot_pypi in ~/.pypirc)
 #   make run ARGS="-o ~/midi --idle 20"
 
 PYTHON ?= python3
@@ -35,6 +38,7 @@ help:
 	@echo "clean         remove caches"
 	@echo "distclean     clean + remove the virtualenv"
 	@echo "testpypi      check + build + upload dist/* to TestPyPI"
+	@echo "pypi          check + build + upload dist/* to PyPI (normally release via GitHub instead)"
 
 all: distclean venv lint format format-check typecheck test
 
@@ -82,6 +86,9 @@ distclean: clean
 	rm -rf $(VENV)
 
 # ---------------------------------------
+# Manual uploads. Credentials come from the repository sections in ~/.pypirc (username __token__, password = API token).
+# The normal way to publish is a GitHub release (.github/workflows/release.yml, trusted publishing, no token).
+# Every upload needs a new __version__ in midi_recorder.py: neither index accepts the same file twice.
 testpypi: build
 	$(VBIN)/twine upload \
 		--config-file=$${HOME}/.pypirc \
