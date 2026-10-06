@@ -36,6 +36,7 @@ dev = [
     "build",
     "mypy",
     "pytest",
+    "pytest-cov",
     "ruff",
     "twine",
 ]
@@ -57,7 +58,7 @@ path = "midi_recorder.py"
 include = ["midi_recorder.py", "midi_recorder_gui.py"]
 
 [tool.hatch.build.targets.sdist]
-include = ["midi_recorder.py", "midi_recorder_gui.py", "tests", "stubs", "Makefile", "README.md", "LICENSE", "pyproject.toml"]
+include = ["midi_recorder.py", "midi_recorder_gui.py", "tests", "stubs", "Makefile", "README.md", "SPECIFICATIONS.md", "LICENSE", "pyproject.toml"]
 
 [tool.ruff]
 line-length = 160
@@ -76,6 +77,15 @@ warn_unreachable = true
 pretty = true
 mypy_path = "stubs"
 show_error_codes = true
+
+[tool.coverage.run]
+source = ["midi_recorder", "midi_recorder_gui"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 95  # the GUI tests need a display: on a headless machine run them under xvfb-run (see `make coverage`)
+exclude_also = ["if __name__ == .__main__.:"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

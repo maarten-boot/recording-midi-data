@@ -23,6 +23,8 @@ class Message:
 class MetaMessage:
     type: str
     time: int
+    name: str  # track_name
+    tempo: int  # set_tempo
     def __init__(self, type: str, **kwargs: Any) -> None: ...
     def copy(self, **overrides: Any) -> MetaMessage: ...
 

@@ -2,6 +2,7 @@
 #   make            -> show targets
 #   make all        -> clean rebuild of the venv, then format, lint, typecheck and test
 #   make check      -> ruff check + ruff format --check + mypy --strict + pytest
+#   make coverage   -> pytest with line + branch coverage, fails below the threshold in pyproject.toml
 #   make build      -> check, then build sdist + wheel into dist/ and run twine check
 #   make testpypi   -> build, then upload dist/* to TestPyPI (repository section mboot_testpypi in ~/.pypirc)
 #   make pypi       -> only from a clean tree whose HEAD is tagged v<version>: build, then upload dist/* to PyPI after you retype the version
@@ -22,7 +23,7 @@ PY    := midi_recorder.py midi_recorder_gui.py
 SRC   := $(PY) tests stubs
 
 .DEFAULT_GOAL := help
-.PHONY: help all venv lint format format-check typecheck test check build run run-gui clean distclean testpypi pypi pypi-guard
+.PHONY: help all venv lint format format-check typecheck test check coverage build run run-gui clean distclean testpypi pypi pypi-guard
 
 help:
 	@echo "all           distclean + venv + lint + format + format-check + typecheck + test"
@@ -33,6 +34,7 @@ help:
 	@echo "typecheck     mypy --strict"
 	@echo "test          pytest"
 	@echo "check         lint + format-check + typecheck + test"
+	@echo "coverage      pytest with line + branch coverage (GUI tests need a display: xvfb-run make coverage)"
 	@echo "build         build sdist + wheel into dist/ and run twine check"
 	@echo "run           run the recorder (ARGS=\"...\" passes options)"
 	@echo "run-gui       run the status window (needs tkinter; ARGS=\"...\" passes options)"
@@ -68,6 +70,9 @@ test: $(STAMP)
 
 check: lint format-check typecheck test
 
+coverage: $(STAMP)
+	$(VBIN)/pytest --cov
+
 build: $(STAMP) check
 	rm -rf dist
 	$(VBIN)/python -m build
@@ -80,7 +85,7 @@ run-gui: $(STAMP)
 	$(VBIN)/python midi_recorder_gui.py $(ARGS)
 
 clean:
-	rm -rf .mypy_cache .ruff_cache .pytest_cache build dist *.egg-info
+	rm -rf .mypy_cache .ruff_cache .pytest_cache .coverage htmlcov build dist *.egg-info
 	find . -name __pycache__ -not -path "./$(VENV)/*" -prune -exec rm -rf {} +
 
 distclean: clean
