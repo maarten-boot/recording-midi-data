@@ -4,7 +4,7 @@
 |---|---|
 | Project | `midi-recorder` (repository `recording-midi-data`) |
 | Describes | version **0.1.1** (`__version__` in `midi_recorder.py`) |
-| Written | 2026-10-05 |
+| Written | 2026-10-05, standalone executables added 2026-10-06 |
 | Repository | https://github.com/maarten-boot/recording-midi-data |
 | License | MIT |
 | Owner | Maarten Boot |
@@ -22,6 +22,7 @@ It is written so that someone who has never seen the code can maintain it. Behav
 |---|---|---|
 | `midi_recorder.py` | ~490 | Everything except the window: ports, sessions, files, journal, logging, CLI. |
 | `midi_recorder_gui.py` | ~140 | The tkinter window. Uses `midi_recorder.Recorder` and `Status`, nothing else. |
+| `freeze/midi-recorder.spec`, `freeze/smoke_test.py` | ~50, ~90 | Standalone executables with PyInstaller (section 8.6). |
 
 **The five things most worth knowing**
 
@@ -71,6 +72,7 @@ make run-gui ARGS="-o ~/midi"
 | Wheel contents | `midi_recorder.py`, `midi_recorder_gui.py`, metadata, `LICENSE` |
 | Dev tools | `ruff`, `mypy --strict`, `pytest`, `pytest-cov`, `build`, `twine` (all in the `dev` extra) |
 | Tests | 114, about 13 s, 100 % line and branch coverage (section 9) |
+| Standalone executables | PyInstaller, `make binary`; release archives for Linux x86_64, Windows x86_64, macOS arm64 (section 8.6) |
 | Not supported | Python 3.13: `python-rtmidi` publishes no wheels for it, pip would have to compile it |
 
 ## 3. Functional specification
@@ -330,7 +332,10 @@ Python 3.10 is scheduled to reach end of life in October 2026. Raising `requires
 
 ```
 .github/workflows/ci.yml        checks on 3 systems x Python 3.10 and 3.12, plus a package build
-.github/workflows/release.yml   PyPI release (trusted publishing)
+.github/workflows/release.yml   PyPI release (trusted publishing), plus binaries attached to the GitHub release
+.github/workflows/binaries.yml  reusable: PyInstaller builds on Linux, Windows, macOS (called by ci.yml and release.yml)
+freeze/midi-recorder.spec       PyInstaller build description
+freeze/smoke_test.py            checks that built binaries start and contain the MIDI backend and tkinter
 .gitignore  LICENSE  README.md  SPECIFICATIONS.md
 Makefile                        every developer task, inside .venv
 pyproject.toml                  metadata, hatch, ruff, mypy, coverage, pytest
@@ -350,6 +355,7 @@ All tools are run as `$(VBIN)/tool`, i.e. from `.venv`, **never** from `PATH`. (
 | `lint`, `format`, `format-check`, `typecheck`, `test` | the individual tools |
 | `check` | lint + format-check + typecheck + test (writes nothing) |
 | `coverage` | `pytest --cov`, fails under 95 %; GUI tests need a display |
+| `binary` | installs the `binary` extra (PyInstaller) once, builds both programs for the current OS into `build/bin`, runs `freeze/smoke_test.py` |
 | `all` | `distclean venv lint format format-check typecheck test`; **runs `ruff format`, so it rewrites files** |
 | `build` | `check`, then `python -m build`, then `twine check dist/*` |
 | `testpypi` | `build`, then upload to TestPyPI (`~/.pypirc` section `mboot_testpypi`) |
@@ -366,7 +372,7 @@ Do not make `build` depend on `all`: `all` deletes the venv in the middle of the
 
 ### 8.4 Continuous integration (`ci.yml`)
 
-Triggers: push to `main`, pull requests, manual. Matrix: `ubuntu-latest`, `windows-latest`, `macos-latest` x Python `3.10`, `3.12` (3.13 is excluded on purpose, see section 2). Steps: install `-e ".[dev]"`; `ruff check`; `ruff format --check`; `mypy`; `pytest`. A separate `package` job builds the sdist and wheel, runs `twine check`, and uploads `dist/` as an artifact. The workflows call the tools directly (no `make`) so Windows needs no GNU make.
+Triggers: push to `main`, pull requests, manual. Matrix: `ubuntu-latest`, `windows-latest`, `macos-latest` x Python `3.10`, `3.12` (3.13 is excluded on purpose, see section 2). Steps: install `-e ".[dev]"`; `ruff check`; `ruff format --check`; `mypy`; `pytest`. A separate `package` job builds the sdist and wheel, runs `twine check`, and uploads `dist/` as an artifact. The workflows call the tools directly (no `make`) so Windows needs no GNU make. A third job calls `binaries.yml` (section 8.6), so every push also checks that the standalone executables still build and start on all three systems.
 
 GUI window tests skip themselves when there is no display, so on the Linux runner only the display-independent GUI tests run (`pytest.skip`, not a failure). Whether the Windows and macOS runners provide a display for Tk was not observed.
 
@@ -376,7 +382,7 @@ GUI window tests skip themselves when there is no display, so on the Linux runne
 bump __version__ -> commit -> push -> GitHub: create release with tag v<version> -> workflow runs
 ```
 
-Jobs: `build` (ruff, mypy, pytest, build, `twine check --strict`, and, for a release event, a check that the tag equals `v<__version__>` or `<__version__>`); `publish-pypi` (only on a release; environment `pypi`); `publish-testpypi` (only on a manual run; environment `testpypi`, `skip-existing`). Only the publish jobs have `id-token: write`.
+Jobs: `build` (ruff, mypy, pytest, build, `twine check --strict`, and, for a release event, a check that the tag equals `v<__version__>` or `<__version__>`); `publish-pypi` (only on a release; environment `pypi`); `publish-testpypi` (only on a manual run; environment `testpypi`, `skip-existing`). Only the publish jobs have `id-token: write`. Two more jobs: `binaries` (calls `binaries.yml` after `build`, read-only) and `attach-binaries` (on a release only: downloads the `binary-*` artifacts and runs `gh release upload`; the only job with `contents: write`).
 
 **One-time setup (not yet done at the time of writing):** on both pypi.org and test.pypi.org add a *pending trusted publisher* with project `midi-recorder`, owner `maarten-boot`, repository `recording-midi-data`, workflow `release.yml`, environment `pypi` (PyPI) or `testpypi` (TestPyPI); and create the two environments in the GitHub repository settings (optionally with yourself as required reviewer for `pypi`).
 
@@ -390,7 +396,41 @@ Jobs: `build` (ruff, mypy, pytest, build, `twine check --strict`, and, for a rel
 | `actions/download-artifact` | v8.0.1 | `3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c` |
 | `pypa/gh-action-pypi-publish` | v1.14.2 | `dc37677b2e1c63e2034f94d8a5b11f265b73ba33` |
 
-Pins do not update themselves (open item OI-5). Neither workflow has been run on GitHub from the environment this was written in; they were linted with `actionlint`.
+Pins do not update themselves (open item OI-5). `binaries.yml` uses the same pins. Neither workflow has been run on GitHub from the environment this was written in; they were linted with `actionlint`.
+
+### 8.6 Standalone executables
+
+Built with **PyInstaller** from `freeze/midi-recorder.spec`. PyInstaller packs the interpreter, the two modules, `mido`, `python-rtmidi` (with its native library and a bundled JACK library), `libasound` on Linux, and Tcl/Tk for the window, into one executable per program. It is packing, not compiling to machine code; speed was never an issue (D-1).
+
+| System | CLI | Window | Archive (release asset) |
+|---|---|---|---|
+| Linux | `midi-recorder` | `midi-recorder-gui` | `midi-recorder-<version>-linux-x86_64.tar.gz` |
+| Windows | `midi-recorder.exe` (console) | `midi-recorder-gui.exe` (no console) | `midi-recorder-<version>-windows-x86_64.zip` |
+| macOS | `midi-recorder` | `MIDI Recorder.app` (folder bundle; PyInstaller has no one-file app bundles) | `midi-recorder-<version>-macos-arm64.zip` |
+
+Each archive also contains `LICENSE` and `README.md`. Measured on Linux: CLI about 12 MB, window about 17 MB, archive about 29 MB.
+
+**The one essential setting.** `mido` loads its backend with `importlib` by name, which PyInstaller cannot see, so the spec lists `mido.backends.rtmidi` in `hiddenimports`. Without it the binary starts but every port operation fails with `No module named 'mido.backends.rtmidi'`. This was observed with a first, naive build.
+
+**Output folder.** `build/bin`, not `dist/`: `make testpypi` and `make pypi` upload `dist/*`, and a binary there would be uploaded too.
+
+**Smoke test.** `freeze/smoke_test.py <folder>` runs, without any MIDI device:
+
+- `midi-recorder --help` must exit 0 and print the usage.
+- `midi-recorder --list` must exit 0 or 1 without `No module named` or a traceback. 0 means ports were listed (possibly none); 1 is the clean backend error on a machine without MIDI.
+- `midi-recorder-gui --help` must exit 0. On Windows a windowed program has no stdout, so only the exit code is checked.
+- On Linux the window program, started without a display, must fail with the clean `error: cannot open a window`. That proves tkinter is bundled.
+
+It was verified to fail for a build without the hidden import and for a missing build, and to pass for a correct build.
+
+**Build rules**
+
+- Build on each system separately; there is no cross-compiling. CI does it in `binaries.yml`.
+- **Linux:** the binary uses the build machine's glibc (the bundled `libpython` from Ubuntu 24.04 requires `GLIBC_2.38`). CI therefore builds on `ubuntu-22.04` (glibc 2.35), so the result runs on Ubuntu 22.04+, Debian 12+ and current Fedora. GitHub has started deprecating that runner image; it is unsupported from April 2027 (OI-10).
+- **macOS:** `macos-latest` builds for Apple silicon only. Intel Macs would need a second build on an Intel runner.
+- **Windows and macOS:** the files are not signed (KL-13).
+
+**Verified so far:** on Linux, `make binary` builds both programs and the smoke test passes; the archive step of `binaries.yml` was run locally and the unpacked binary starts. The window binary was started under a virtual display and drew the normal window. **Not verified:** the Windows and macOS builds, and any binary with a real MIDI device.
 
 ## 9. Testing
 
@@ -434,6 +474,7 @@ Several tests use real threads and short sleeps (idle 0.1 to 0.3 s, waits up to 
 - Windows and macOS behaviour (CI runs the same tests there; not observed).
 - Signals (SIGTERM), and a real `kill -9`: this was tried once by hand with a fake port (all 7 events recovered), not as an automated test.
 - Very long takes, memory growth, high event rates.
+- The standalone executables on Windows and macOS (only their CI smoke test, not observed), and any executable with real MIDI input.
 - The real Tk event loop beyond what the tests drive (`refresh`, `close`, `main` with a quick `mainloop`).
 
 ### 9.6 Manual acceptance checklist for real hardware
@@ -469,6 +510,9 @@ Do this once on the real USB piano, on each OS that matters, with `--idle 5`:
 | D-15 | `hatchling`, version in the module | One place to bump; no `setup.py`. |
 | D-16 | Trusted publishing for releases | No long-lived token on any machine. `make pypi` remains as a guarded manual path. |
 | D-17 | Actions pinned to SHAs, workflows call tools directly | Supply-chain hygiene; works on Windows without `make`. |
+| D-18 | PyInstaller for standalone executables | Mature, handles tkinter and native extensions, no C compiler needed; tested here. Nuitka (real compilation to C) is the alternative if start-up time or unpacking matter; it needs the same hint (`--include-module=mido.backends.rtmidi`). |
+| D-19 | Binaries in `build/bin`, PyInstaller only in a `binary` extra | Keeps them away from `dist/*` uploads; keeps the CI test jobs fast. |
+| D-20 | One reusable `binaries.yml`, release assets attached by a separate job | The same build is checked on every push and used for releases; only the attaching job gets `contents: write`. |
 
 ## 11. Known limitations and risks
 
@@ -488,6 +532,8 @@ Ordered by how much they matter. "Fix" is a suggestion, not a commitment.
 | KL-10 | Low | Events that arrive after the session loop has finished but before the ports are closed (a few milliseconds at shutdown) are lost. | Stop the port manager first, then the session loop. |
 | KL-11 | Info | Recovered journals are named after their start time; if `<stem>_recovered.mid` also exists it is overwritten. Journals are recovered only at `Recorder.start()`. Do not run two recorders on one folder: one would treat the other's live journal as a crash. | Lock file in the output folder. |
 | KL-12 | Info | `python-rtmidi` has no Python 3.13 wheels; real MIDI hardware has been exercised only through a virtual keyboard; macOS never with a real device; SysEx depends on what the backend delivers and is only tested inside `save()` and the journal. | Verify with the checklist in 9.6. |
+| KL-13 | Medium | The standalone executables are not code-signed: Windows SmartScreen warns, macOS Gatekeeper blocks the app until it is opened with right-click, Open. Packed Python executables are also a common source of antivirus false positives. Linux binaries need glibc 2.35+; there is no macOS Intel build. | Sign (Windows certificate, Apple Developer ID with notarization); add an Intel macOS build if needed. |
+| KL-14 | Info | The archives contain third-party components (CPython, Tcl/Tk, `mido`, `python-rtmidi` with RtMidi and a JACK library, `libasound`) but only this project's `LICENSE`. The JACK library is under the LGPL. | Add the third-party license texts to the archives; have the licensing checked (OI-12). This is not legal advice. |
 
 ## 12. Open items and suggested next steps
 
@@ -502,6 +548,10 @@ Ordered by how much they matter. "Fix" is a suggestion, not a commitment.
 | OI-7 | Decide whether `make pypi` should remain now that releases go through `release.yml`. |
 | OI-8 | Add `--version`, a changelog, and a short "Releasing" section to the README. |
 | OI-9 | Fix KL-2 and KL-6 (small, and remove two ways to lose or corrupt a recording by misuse). |
+| OI-10 | Move the Linux binary build off the deprecated `ubuntu-22.04` runner before April 2027, for example into a container with an old glibc, and keep the glibc floor documented in the README. |
+| OI-11 | Decide about code signing and notarization for the executables (KL-13). |
+| OI-12 | Add third-party license notices to the binary archives (KL-14). |
+| OI-13 | Watch the first runs of `binaries.yml` on Windows and macOS; they are the first real test of the spec's macOS bundle and of the Windows windowed build. |
 
 ## 13. Operations and troubleshooting
 
@@ -516,8 +566,10 @@ Ordered by how much they matter. "Fix" is a suggestion, not a commitment.
 | `make: .venv/bin/ruff: No such file or directory` | A target removed the venv. Run `make venv` or `make check`. |
 | `InvalidDistribution: Metadata is missing required fields` on upload | Old twine, usually a system twine ahead of the venv's on `PATH`. Use `$(VBIN)/twine` (the Makefile does) or `pip install -U twine`. |
 | `make coverage` fails with "Required test coverage of 95.0% not reached" on a headless box | GUI window tests were skipped. Run `xvfb-run make coverage`. |
+| A binary says `No module named 'mido.backends.rtmidi'` | It was built without the hidden import. Build with `freeze/midi-recorder.spec` (`make binary`), not with a bare `pyinstaller midi_recorder.py`. |
+| A Linux binary fails with `GLIBC_2.xx not found` | It was built on a newer distribution than the one it runs on. Use the release archive (built on Ubuntu 22.04) or build on the oldest system you need. |
 | `pip install` tries to compile `python-rtmidi` | Python 3.13 (no wheels) or an unusual platform. Use Python 3.12. |
 
 ## 14. Appendix: history in one paragraph
 
-Written in October 2026 in one long working session with an AI assistant. Order of work: requirements and the decision to stay on CPython; a first script that records one port; recording from all ports with hot-plug; ruff and `mypy --strict` clean with a local mido stub; logging to stderr and a rotated file; a crash-safe journal with recovery, a tkinter status window and a GitHub Actions workflow; a switch to hatchling for a publishable package; a release workflow with trusted publishing; pinning of all actions to commit SHAs; a guarded `make pypi`; and finally the behaviour-freezing test suite and this document. Notable problems met on the way and fixed: a Makefile target that deleted its own venv (8.2), twine metadata 2.5 (8.3), `time.monotonic()` resolution on Windows (D-3).
+Written in October 2026 in one long working session with an AI assistant. Order of work: requirements and the decision to stay on CPython; a first script that records one port; recording from all ports with hot-plug; ruff and `mypy --strict` clean with a local mido stub; logging to stderr and a rotated file; a crash-safe journal with recovery, a tkinter status window and a GitHub Actions workflow; a switch to hatchling for a publishable package; a release workflow with trusted publishing; pinning of all actions to commit SHAs; a guarded `make pypi`; the behaviour-freezing test suite and this document; and finally standalone executables with PyInstaller, built in CI on all three systems. Notable problems met on the way and fixed: a Makefile target that deleted its own venv (8.2), twine metadata 2.5 (8.3), `time.monotonic()` resolution on Windows (D-3), and mido's backend being invisible to PyInstaller (8.6).

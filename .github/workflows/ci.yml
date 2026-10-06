@@ -33,13 +33,13 @@ jobs:
 
       # the same checks as `make check`, called directly so Windows needs no make
       - name: ruff check
-        run: ruff check midi_recorder.py midi_recorder_gui.py tests stubs
+        run: ruff check midi_recorder.py midi_recorder_gui.py tests stubs freeze
 
       - name: ruff format --check
-        run: ruff format --check midi_recorder.py midi_recorder_gui.py tests stubs
+        run: ruff format --check midi_recorder.py midi_recorder_gui.py tests stubs freeze
 
       - name: mypy --strict
-        run: mypy midi_recorder.py midi_recorder_gui.py tests
+        run: mypy midi_recorder.py midi_recorder_gui.py tests freeze/smoke_test.py
 
       - name: pytest
         run: pytest
@@ -64,3 +64,7 @@ jobs:
         with:
           name: dist
           path: dist/
+
+  binaries:
+    name: binaries
+    uses: ./.github/workflows/binaries.yml

@@ -41,6 +41,11 @@ dev = [
     "twine",
 ]
 
+# standalone executables (make binary); kept out of dev so CI test jobs stay fast
+binary = [
+    "pyinstaller>=6.22",
+]
+
 [project.urls]
 Homepage = "https://github.com/maarten-boot/recording-midi-data"
 Issues = "https://github.com/maarten-boot/recording-midi-data/issues"
@@ -58,7 +63,7 @@ path = "midi_recorder.py"
 include = ["midi_recorder.py", "midi_recorder_gui.py"]
 
 [tool.hatch.build.targets.sdist]
-include = ["midi_recorder.py", "midi_recorder_gui.py", "tests", "stubs", "Makefile", "README.md", "SPECIFICATIONS.md", "LICENSE", "pyproject.toml"]
+include = ["midi_recorder.py", "midi_recorder_gui.py", "tests", "stubs", "freeze", "Makefile", "README.md", "SPECIFICATIONS.md", "LICENSE", "pyproject.toml"]
 
 [tool.ruff]
 line-length = 160

@@ -1,0 +1,82 @@
+# Standalone executables, built with PyInstaller from freeze/midi-recorder.spec on Linux, Windows and macOS.
+# Reusable: ci.yml calls it to check that the binaries still build and start; release.yml calls it and then
+# attaches the archives to the GitHub release. This workflow itself only needs read access.
+
+name: Binaries
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  binary:
+    name: binary ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # A Linux binary runs only where glibc is at least as new as on the build machine:
+          # ubuntu-22.04 (glibc 2.35) covers Ubuntu 22.04+, Debian 12+ and current Fedora.
+          # GitHub deprecates this runner image; it is unsupported from April 2027 (see SPECIFICATIONS.md).
+          - os: ubuntu-22.04
+            label: linux-x86_64
+          - os: windows-latest
+            label: windows-x86_64
+          - os: macos-latest
+            label: macos-arm64
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[binary]"
+
+      - name: Build
+        run: pyinstaller --noconfirm --clean --distpath build/bin --workpath build/pyinstaller freeze/midi-recorder.spec
+
+      - name: Smoke test
+        run: python freeze/smoke_test.py build/bin
+
+      - name: Archive
+        id: archive
+        shell: bash
+        run: |
+          version=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' midi_recorder.py)
+          name="midi-recorder-${version}-${{ matrix.label }}"
+          stage="build/$name"
+          mkdir -p "$stage"
+          cp LICENSE README.md "$stage/"
+          case "$RUNNER_OS" in
+            Windows)
+              cp build/bin/midi-recorder.exe build/bin/midi-recorder-gui.exe "$stage/"
+              (cd build && 7z a -tzip "$name.zip" "$name" > /dev/null)
+              file="build/$name.zip" ;;
+            macOS)
+              cp build/bin/midi-recorder "$stage/"
+              ditto "build/bin/MIDI Recorder.app" "$stage/MIDI Recorder.app"
+              (cd build && ditto -c -k --keepParent "$name" "$name.zip")
+              file="build/$name.zip" ;;
+            *)
+              cp build/bin/midi-recorder build/bin/midi-recorder-gui "$stage/"
+              tar -C build -czf "build/$name.tar.gz" "$name"
+              file="build/$name.tar.gz" ;;
+          esac
+          ls -l "$file"
+          echo "file=$file" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: binary-${{ matrix.label }}
+          path: ${{ steps.archive.outputs.file }}
+          if-no-files-found: error

@@ -3,6 +3,7 @@
 #   make all        -> clean rebuild of the venv, then format, lint, typecheck and test
 #   make check      -> ruff check + ruff format --check + mypy --strict + pytest
 #   make coverage   -> pytest with line + branch coverage, fails below the threshold in pyproject.toml
+#   make binary     -> standalone executables for this OS into build/bin (PyInstaller), then a smoke test
 #   make build      -> check, then build sdist + wheel into dist/ and run twine check
 #   make testpypi   -> build, then upload dist/* to TestPyPI (repository section mboot_testpypi in ~/.pypirc)
 #   make pypi       -> only from a clean tree whose HEAD is tagged v<version>: build, then upload dist/* to PyPI after you retype the version
@@ -20,10 +21,12 @@ endif
 STAMP := $(VENV)/.installed
 VERSION = $(shell sed -n 's/^__version__ = "\(.*\)"/\1/p' midi_recorder.py)
 PY    := midi_recorder.py midi_recorder_gui.py
-SRC   := $(PY) tests stubs
+SRC   := $(PY) tests stubs freeze
+BIN   := build/bin
+BIN_STAMP := $(VENV)/.binary-installed
 
 .DEFAULT_GOAL := help
-.PHONY: help all venv lint format format-check typecheck test check coverage build run run-gui clean distclean testpypi pypi pypi-guard
+.PHONY: help all venv lint format format-check typecheck test check coverage binary build run run-gui clean distclean testpypi pypi pypi-guard
 
 help:
 	@echo "all           distclean + venv + lint + format + format-check + typecheck + test"
@@ -35,6 +38,7 @@ help:
 	@echo "test          pytest"
 	@echo "check         lint + format-check + typecheck + test"
 	@echo "coverage      pytest with line + branch coverage (GUI tests need a display: xvfb-run make coverage)"
+	@echo "binary        standalone executables for this OS into build/bin (PyInstaller), plus a smoke test"
 	@echo "build         build sdist + wheel into dist/ and run twine check"
 	@echo "run           run the recorder (ARGS=\"...\" passes options)"
 	@echo "run-gui       run the status window (needs tkinter; ARGS=\"...\" passes options)"
@@ -63,7 +67,7 @@ format-check: $(STAMP)
 	$(VBIN)/ruff format --check $(SRC)
 
 typecheck: $(STAMP)
-	$(VBIN)/mypy $(PY) tests
+	$(VBIN)/mypy $(PY) tests freeze/smoke_test.py
 
 test: $(STAMP)
 	$(VBIN)/pytest
@@ -72,6 +76,14 @@ check: lint format-check typecheck test
 
 coverage: $(STAMP)
 	$(VBIN)/pytest --cov
+
+$(BIN_STAMP): $(STAMP)
+	$(VBIN)/python -m pip install -e ".[binary]"
+	touch $(BIN_STAMP)
+
+binary: $(BIN_STAMP)
+	$(VBIN)/pyinstaller --noconfirm --clean --distpath $(BIN) --workpath build/pyinstaller freeze/midi-recorder.spec
+	$(VBIN)/python freeze/smoke_test.py $(BIN)
 
 build: $(STAMP) check
 	rm -rf dist

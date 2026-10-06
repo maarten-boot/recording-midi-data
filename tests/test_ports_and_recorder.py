@@ -223,6 +223,9 @@ class TestRecorder:
             assert wait_for(lambda: recorder.status.ports == ("Piano", "Synth"))
             fake_backend.ports["Synth"].send(note("note_on", 40))
             fake_backend.ports["Piano"].send(note("note_on", 60))
+            # release both, so the 0.3 s idle time ends the take (held notes would keep it open for max_hold)
+            fake_backend.ports["Synth"].send(note("note_off", 40))
+            fake_backend.ports["Piano"].send(note("note_off", 60))
             assert wait_for(lambda: len(recorder.status.saved) == 1)
         finally:
             recorder.stop()

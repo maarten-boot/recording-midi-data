@@ -28,6 +28,16 @@ Python 3.10 - 3.12. The MIDI backend `python-rtmidi` has no prebuilt wheels for 
 | Windows 10, 11 | A MIDI input can usually be opened by only one program at a time. Close your DAW first, or route the keyboard through a loopback driver such as loopMIDI so both can listen. |
 | macOS | Should work through CoreMIDI. The automated tests run on macOS, but it has not been tried with a real keyboard. |
 
+## Standalone binaries (no Python needed)
+
+Each GitHub release also has archives with both programs for Linux (x86_64), Windows (x86_64) and macOS (Apple silicon), built with PyInstaller.
+
+- Linux: needs glibc 2.35 or newer (Ubuntu 22.04+, Debian 12+, current Fedora). Unpack and run `./midi-recorder` or `./midi-recorder-gui`.
+- Windows: `midi-recorder.exe` (console) and `midi-recorder-gui.exe` (window). The files are not signed, so SmartScreen will warn on first start.
+- macOS: `midi-recorder` and `MIDI Recorder.app`. Not signed or notarized: open the app the first time with right-click, Open.
+
+To build them yourself, run `make binary` on the system you want them for; they appear in `build/bin`.
+
 ## Quick start
 
 ```
@@ -88,6 +98,7 @@ cd recording-midi-data
 make check        # ruff, ruff format --check, mypy --strict, pytest (creates .venv)
 make all          # the same from a fresh venv, also runs ruff format
 make build        # checks, then builds the sdist and wheel into dist/ and runs twine check
+make binary       # standalone executables for this system into build/bin, plus a smoke test
 make run ARGS="-o ~/midi"
 ```
 
